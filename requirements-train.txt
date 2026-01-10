@@ -1,0 +1,12 @@
+# Training-only dependencies
+# Keep API requirements minimal in requirements.txt
+
+# Core (already used in repo, but repeated here for convenience)
+torch
+transformers
+sentencepiece
+pyvi
+
+# Trainer runtime
+accelerate
+numpy

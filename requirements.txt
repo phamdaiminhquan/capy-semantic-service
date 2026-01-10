@@ -1,0 +1,10 @@
+torch
+transformers
+sentencepiece
+pyvi
+sqlalchemy
+psycopg2-binary
+fastapi
+uvicorn[standard]
+pydantic
+python-dotenv
