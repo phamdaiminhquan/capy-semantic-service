@@ -1,6 +1,7 @@
 import csv
 from sqlalchemy.orm import Session
 from .models import TrainingExample
+from shared.vi_processor import normalize
 
 def export_train_csv(db: Session, output_path: str = "train.csv") -> dict:
     """
@@ -20,7 +21,9 @@ def export_train_csv(db: Session, output_path: str = "train.csv") -> dict:
         writer.writerow(['text', 'label'])
         
         for ex in examples:
-            writer.writerow([ex.normalized_text, ex.label])
+            # Recompute using canonical shared pipeline to avoid skew.
+            norm = normalize(ex.raw_text).normalized_text
+            writer.writerow([norm, ex.label])
     
     # Stats
     label_counts = {}

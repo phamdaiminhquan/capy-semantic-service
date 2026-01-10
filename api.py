@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 from capy_teacher.database import get_db, init_db
 from capy_teacher.crud import DatasetManager
-from capy_teacher.export import export_train_csv
+from worker.export_dataset import export_dataset
 from capy_teacher.text_pipeline import teacher_preprocess
 from capy_teacher.predictor import get_text_classifier
 from capy_teacher.models import VALID_LABELS
@@ -25,13 +25,29 @@ app.add_middleware(
 @app.on_event("startup")
 def startup():
     init_db()
-    # Load model once at startup (warm-up). If missing, fail fast.
-    get_text_classifier()
+    # Optional: warm-up model once at startup.
+    # For dataset collection, we should NOT require model artifacts.
+    warmup = os.getenv("WARMUP_MODEL", "0").lower() in {"1", "true", "yes"}
+    require_model = os.getenv("REQUIRE_MODEL", "0").lower() in {"1", "true", "yes"}
+    if warmup or require_model:
+        try:
+            get_text_classifier()
+        except FileNotFoundError:
+            if require_model:
+                raise
+        except Exception:
+            if require_model:
+                raise
 
 # Request/Response models
 class CreateExampleRequest(BaseModel):
     raw_text: str
     label: str
+
+
+class CreateExamplesBatchRequest(BaseModel):
+    label: str
+    raw_texts: List[str]
 
 class UpdateExampleRequest(BaseModel):
     label: Optional[str] = None
@@ -91,6 +107,42 @@ def create_example(
             updated_at=example.updated_at.isoformat()
         )
     except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/examples/batch", response_model=List[ExampleResponse])
+def create_examples_batch(
+    request: CreateExamplesBatchRequest,
+    db: Session = Depends(get_db)
+):
+    """Tạo nhiều examples cho cùng 1 label (dùng cho FE bơm dữ liệu)."""
+    manager = DatasetManager(db)
+
+    if not request.raw_texts:
+        raise HTTPException(status_code=400, detail="raw_texts must not be empty")
+
+    created: List[ExampleResponse] = []
+    try:
+        # Defer commit for performance
+        examples = [manager.create_example(t, request.label, commit=False) for t in request.raw_texts]
+        db.commit()
+        for ex in examples:
+            db.refresh(ex)
+            created.append(
+                ExampleResponse(
+                    id=ex.id,
+                    raw_text=ex.raw_text,
+                    normalized_text=ex.normalized_text,
+                    label=ex.label,
+                    amount=ex.amount,
+                    is_active=ex.is_active,
+                    created_at=ex.created_at.isoformat(),
+                    updated_at=ex.updated_at.isoformat(),
+                )
+            )
+        return created
+    except ValueError as e:
+        db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/examples", response_model=List[ExampleResponse])
@@ -182,10 +234,14 @@ def get_stats(db: Session = Depends(get_db)):
     return StatsResponse(total=total, label_counts=stats)
 
 @app.post("/export")
-def export_dataset(output_path: str = Query("train.csv"), db: Session = Depends(get_db)):
-    """Export train.csv."""
+def export_dataset_endpoint(
+    output_path: str = Query("train.csv"),
+    fmt: str = Query("csv", pattern="^(csv|parquet)$"),
+    db: Session = Depends(get_db),
+):
+    """Export dataset using canonical shared preprocessing (skew-free)."""
     try:
-        result = export_train_csv(db, output_path)
+        result = export_dataset(db, output_path=output_path, fmt=fmt, only_active=True)
         return {
             "message": "Export successful",
             "output_path": result["output_path"],

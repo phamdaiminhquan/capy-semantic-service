@@ -29,6 +29,7 @@ def main() -> None:
     text = args.text
     if args.preprocess:
         text = preprocess_text(text)["normalized_text"]
+    # Keep for backward compatibility with older datasets that may contain '< AMOUNT >'
     text = normalize_amount_token(text)
 
     enc = tokenizer(text, return_tensors="pt", truncation=True)

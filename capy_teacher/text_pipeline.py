@@ -1,10 +1,9 @@
 import re
 from typing import Any
 
-from .preprocess import preprocess_text
+from shared.vi_processor import AMOUNT_TOKEN, count_tokens, normalize, sha256_text
 
 
-AMOUNT_TOKEN = "<AMOUNT>"
 _AMOUNT_PATTERN = re.compile(r"<\s*amount\s*>", re.IGNORECASE)
 
 
@@ -30,9 +29,22 @@ def teacher_preprocess(raw_text: str) -> dict:
     - Applies canonical normalization for amount-token variants/spaces.
     """
 
-    processed = preprocess_text(raw_text)
-    processed["normalized_text"] = ensure_amount_token_spacing(processed["normalized_text"])
-    return processed
+    res = normalize(raw_text)
+    # Safety: enforce canonical spacing in case downstream code mutates the string.
+    normalized_text = ensure_amount_token_spacing(res.normalized_text)
+    return {"raw_text": res.raw_text, "normalized_text": normalized_text, "amount": res.amount}
+
+
+def teacher_cache_key(raw_text: str) -> str:
+    """Cache key derived from canonical normalized text (sha256)."""
+
+    return sha256_text(normalize(raw_text).normalized_text)
+
+
+def teacher_token_count(raw_text: str) -> int:
+    """Token count derived from canonical normalized text."""
+
+    return count_tokens(normalize(raw_text).normalized_text)
 
 
 def tokenize_text(

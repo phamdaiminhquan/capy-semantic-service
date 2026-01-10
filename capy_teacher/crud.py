@@ -7,8 +7,12 @@ class DatasetManager:
     def __init__(self, db: Session):
         self.db = db
     
-    def create_example(self, raw_text: str, label: str) -> TrainingExample:
-        """Tạo example mới, tự động preprocess"""
+    def create_example(self, raw_text: str, label: str, *, commit: bool = True) -> TrainingExample:
+        """Tạo example mới, tự động preprocess.
+
+        Args:
+            commit: Nếu False, chỉ add vào session (caller tự commit).
+        """
         if label not in VALID_LABELS:
             raise ValueError(f"Invalid label. Must be one of {VALID_LABELS}")
         
@@ -23,8 +27,9 @@ class DatasetManager:
         )
         
         self.db.add(example)
-        self.db.commit()
-        self.db.refresh(example)
+        if commit:
+            self.db.commit()
+            self.db.refresh(example)
         return example
     
     def list_examples(
