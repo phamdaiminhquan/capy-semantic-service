@@ -7,9 +7,15 @@ from capy_teacher.database import get_db, init_db
 from capy_teacher.crud import DatasetManager
 from worker.export_dataset import export_dataset
 from capy_teacher.text_pipeline import teacher_preprocess
-from capy_teacher.predictor import get_text_classifier
-from capy_teacher.models import VALID_LABELS
+from capy_teacher.models import VALID_LABELS, TrainingExample
 import os
+
+
+def _get_text_classifier_lazy():
+    # Import lazily so dataset-collection mode can run without torch/transformers installed.
+    from capy_teacher.predictor import get_text_classifier
+
+    return get_text_classifier()
 
 app = FastAPI(title="Capy Teacher API", version="1.0.0")
 
@@ -31,7 +37,7 @@ def startup():
     require_model = os.getenv("REQUIRE_MODEL", "0").lower() in {"1", "true", "yes"}
     if warmup or require_model:
         try:
-            get_text_classifier()
+            _get_text_classifier_lazy()
         except FileNotFoundError:
             if require_model:
                 raise
@@ -265,7 +271,7 @@ def preprocess_endpoint(raw_text: str):
 def predict_endpoint(request: PredictRequest):
     """Predict label from raw_text using fine-tuned PhoBERT (includes preprocess pipeline)."""
     try:
-        clf = get_text_classifier()
+        clf = _get_text_classifier_lazy()
     except FileNotFoundError as e:
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
@@ -275,9 +281,25 @@ def predict_endpoint(request: PredictRequest):
     return PredictResponse(**result)
 
 @app.get("/labels")
-def get_labels():
-    """Danh sách labels hợp lệ."""
-    return {"labels": VALID_LABELS}
+def get_labels(
+    include_defaults: bool = Query(True),
+    only_active: bool = Query(False),
+    db: Session = Depends(get_db),
+):
+    """Danh sách labels.
+
+    - include_defaults: include built-in suggested labels (VALID_LABELS)
+    - only_active: when True, only labels with active examples are returned
+    """
+    q = db.query(TrainingExample.label).distinct()
+    if only_active:
+        q = q.filter(TrainingExample.is_active == True)
+
+    labels = set([r[0] for r in q.all() if r and r[0]])
+    if include_defaults:
+        labels.update(VALID_LABELS)
+
+    return {"labels": sorted(labels)}
 
 @app.get("/")
 def root():

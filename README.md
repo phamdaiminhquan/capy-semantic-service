@@ -129,6 +129,23 @@ db.close()
 
 ### Start API Server
 
+Dev nhanh (Windows, tương đương `npm run dev`):
+
+```powershell
+./scripts/dev_api.ps1
+```
+
+Sau khi chạy, API ở: http://localhost:8000 (Swagger: http://localhost:8000/docs)
+
+Chạy hoàn toàn bằng Docker (không cần Python local):
+
+```bash
+docker compose --profile local-deps up -d postgres redis
+docker compose --profile teacher up --build teacher-api
+```
+
+API sẽ chạy tại: http://localhost:8000
+
 ```bash
 docker-compose up -d
 ```
@@ -156,6 +173,17 @@ Response:
   "amount": 50000.0,
   ...
 }
+```
+
+### Bơm nhiều samples cho 1 label (batch)
+
+```bash
+curl -X POST "http://localhost:8000/examples/batch" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "label": "chi_an_uong",
+    "raw_texts": ["bánh mì 50k", "bún bò 70k", "cà phê 35k"]
+  }'
 ```
 
 **Khi gửi `raw_text`, hệ thống tự động:**

@@ -2,6 +2,28 @@ services:
   # This repo only ships capy-semantic-service (ai-service + worker + shared).
   # Your NestJS backend + Postgres + Redis already exist elsewhere.
 
+  # Dataset/labeling backend (FastAPI) for collecting training examples.
+  # Runs on http://localhost:8000 and exposes /examples, /examples/batch, /stats, /export ...
+  teacher-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.teacher-api
+    container_name: capy_teacher_api
+    env_file:
+      - .env
+    environment:
+      # Ensure DB hostname 'postgres' resolves inside compose network
+      RUNNING_IN_DOCKER: "1"
+      # Optional knobs (safe defaults)
+      REQUIRE_MODEL: "0"
+      WARMUP_MODEL: "0"
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    command: ["python", "-m", "uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000"]
+    depends_on:
+      - postgres
+    profiles: ["teacher"]
+
   ai-service:
     build:
       context: .
@@ -33,7 +55,7 @@ services:
   postgres:
     image: postgres:15-alpine
     container_name: capy_postgres
-    profiles: ["local-deps"]
+    profiles: ["local-deps", "teacher"]
     env_file:
       - .env
     environment:
@@ -54,7 +76,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: capy_redis
-    profiles: ["local-deps"]
+    profiles: ["local-deps", "teacher"]
     ports:
       - "${REDIS_PORT:-6379}:6379"
     mem_limit: 256m

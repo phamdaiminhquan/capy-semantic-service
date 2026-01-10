@@ -28,6 +28,29 @@ Response:
 }
 ```
 
+### 1b. POST /examples/batch - Tạo nhiều examples cùng label
+
+```bash
+curl -X POST "http://localhost:8000/examples/batch" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "label": "chi_an_uong",
+    "raw_texts": [
+      "bánh mì 50k",
+      "ăn trưa bún bò 70k",
+      "cà phê 35k"
+    ]
+  }'
+```
+
+PowerShell (UTF-8) ví dụ:
+
+```powershell
+$payload = @{ label = "chi_an_uong"; raw_texts = @("bánh mì 50k", "ăn trưa bún bò 70k") } | ConvertTo-Json
+$bytes = [System.Text.Encoding]::UTF8.GetBytes($payload)
+Invoke-RestMethod -Method Post -Uri "http://localhost:8000/examples/batch" -ContentType "application/json; charset=utf-8" -Body $bytes
+```
+
 ### 2. GET /examples - List examples
 
 ```bash

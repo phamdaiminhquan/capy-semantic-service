@@ -1,7 +1,7 @@
 torch
 transformers
 sentencepiece
-underthesea
+pyvi
 sqlalchemy
 psycopg2-binary
 fastapi

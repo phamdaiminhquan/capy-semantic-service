@@ -1,7 +1,27 @@
+import re
+
+from sqlalchemy import func
 from sqlalchemy.orm import Session
-from .models import TrainingExample, VALID_LABELS
+
+from .models import TrainingExample
 from .text_pipeline import teacher_preprocess
 from typing import List, Optional
+
+
+_LABEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
+
+
+def _validate_label(label: str) -> str:
+    if label is None:
+        raise ValueError("label is required")
+    label = str(label).strip()
+    if not label:
+        raise ValueError("label must not be empty")
+    if not _LABEL_RE.match(label):
+        raise ValueError(
+            "Invalid label format. Use letters/digits and characters '_.-' only (max 64), no spaces."
+        )
+    return label
 
 class DatasetManager:
     def __init__(self, db: Session):
@@ -13,8 +33,7 @@ class DatasetManager:
         Args:
             commit: Nếu False, chỉ add vào session (caller tự commit).
         """
-        if label not in VALID_LABELS:
-            raise ValueError(f"Invalid label. Must be one of {VALID_LABELS}")
+        label = _validate_label(label)
         
         # Tự động preprocess (canonicalized)
         preprocessed = teacher_preprocess(raw_text)
@@ -56,9 +75,7 @@ class DatasetManager:
             raise ValueError(f"Example {example_id} not found")
         
         if label is not None:
-            if label not in VALID_LABELS:
-                raise ValueError(f"Invalid label. Must be one of {VALID_LABELS}")
-            example.label = label
+            example.label = _validate_label(label)
         
         if is_active is not None:
             example.is_active = is_active
@@ -76,13 +93,12 @@ class DatasetManager:
         return self.db.query(TrainingExample).filter(TrainingExample.id == example_id).first()
     
     def get_label_stats(self) -> dict:
-        """Kiểm tra số lượng mẫu mỗi label"""
-        stats = {}
-        for label in VALID_LABELS:
-            count = self.db.query(TrainingExample).filter(
-                TrainingExample.label == label,
-                TrainingExample.is_active == True
-            ).count()
-            stats[label] = count
-        return stats
+        """Kiểm tra số lượng mẫu mỗi label (dynamic from DB)."""
+        rows = (
+            self.db.query(TrainingExample.label, func.count(TrainingExample.id))
+            .filter(TrainingExample.is_active == True)
+            .group_by(TrainingExample.label)
+            .all()
+        )
+        return {label: int(count) for label, count in rows}
 

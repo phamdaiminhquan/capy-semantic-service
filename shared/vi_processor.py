@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from pyvi import ViTokenizer
 import hashlib
+import os
 import re
 import unicodedata
 from dataclasses import dataclass
@@ -83,17 +85,7 @@ def sha256_text(normalized_text: str) -> str:
 
 
 def _word_tokenize(text: str) -> str:
-    try:
-        from underthesea import word_tokenize
-    except Exception as e:  # pragma: no cover
-        raise RuntimeError(
-            "underthesea is required for Vietnamese word segmentation. "
-            "Install it in the service environment (ai-service/worker)."
-        ) from e
-
-    # underthesea.word_tokenize(format="text") returns a string
-    segmented = word_tokenize(text, format="text")
-    # Normalize whitespace (underthesea can introduce double spaces)
+    segmented = ViTokenizer.tokenize(text)
     return re.sub(r"\s+", " ", segmented).strip()
 
 
