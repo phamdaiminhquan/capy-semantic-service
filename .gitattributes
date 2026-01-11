@@ -1,0 +1,2 @@
+# Store ONNX models via Git LFS (quantized model is >100MB)
+*.onnx filter=lfs diff=lfs merge=lfs -text

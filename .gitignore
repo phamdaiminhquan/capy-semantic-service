@@ -49,8 +49,18 @@ hf_cache/
 # Logs
 *.log
 
-# Training artifacts
-artifacts/
+# Block heavy artifacts first
+artifacts/*
+dataset/
+training/
+worker/
+
+# Whitelist essential ONNX deployment artifacts
+!artifacts/onnx/
+!artifacts/onnx/**
+
+# Keep only quantized ONNX in Git (optional but recommended)
+artifacts/onnx/model.onnx
 
 # Common ML weight formats (avoid accidental commits)
 *.safetensors
@@ -59,6 +69,7 @@ artifacts/
 *.pth
 *.ckpt
 
-# Exported / local datasets (keep dataset/docs.md)
-dataset/*.csv
+# Exported / local datasets
+*.csv
+
 
