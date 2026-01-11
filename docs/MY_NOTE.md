@@ -1,20 +1,17 @@
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev_api.ps1 -PyVersion 3.11
+# Install dependencies
+pip install -r requirements.txt
 
-# Local/dev defaults
+# Run the app (development mode)
+uvicorn app:app --reload
 
-# Postgres
-POSTGRES_USER=capy
-POSTGRES_PASSWORD=capy123
-POSTGRES_DB=capy_teacher
-POSTGRES_PORT=5432
+# training (bắt đầu fine-tune)
+python -m training.train_textcls --train_csv dataset/train.csv --output_dir artifacts/ phobert_textcls
 
-# App
-APP_PORT=8000
-APP_INTERNAL_PORT=8000
-APP_HOST=0.0.0.0
-UVICORN_RELOAD=--reload
+# predict
+python -m training.predict_textcls --model_dir artifacts/phobert_textcls --text
+# ví dụ
+python -m training.predict_textcls --model_dir artifacts/phobert_textcls --text "đi ăn bún chả 35k"
 
-# Runtime paths
-HF_HOME=/cache/hf
-MODEL_DIR=/app/artifacts/phobert_textcls
-DATABASE_URL=postgresql://capy:capy123@postgres:5432/capy_teacher
+# Run the API with the fine-tuned model
+$env:REQUIRE_MODEL="1"; $env:MODEL_DIR="artifacts/phobert_textcls"; python -m uvicorn api:app --reload --port 8000
+$env:MODEL_DIR="artifacts/onnx"; $env:REQUIRE_MODEL="1"; python -m uvicorn api:app --reload --port 8000
