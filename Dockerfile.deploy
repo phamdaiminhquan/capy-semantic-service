@@ -1,0 +1,33 @@
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+# Minimal OS deps (pyvi + some wheels may need build tooling)
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends build-essential git \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements-api.txt ./
+RUN pip install --no-cache-dir -r requirements-api.txt
+
+# Copy only inference/runtime code
+COPY capy_teacher/ capy_teacher/
+COPY shared/ shared/
+COPY scripts/ scripts/
+
+# Copy only inference artifacts (ONNX + tokenizer files)
+COPY artifacts/onnx/ artifacts/onnx/
+
+# Entrypoints
+COPY api.py ./
+COPY main.py ./
+
+EXPOSE 8000
+
+# Default to ONNX bundle
+ENV MODEL_DIR=artifacts/onnx
+
+CMD ["python", "-m", "uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000"]

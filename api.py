@@ -5,7 +5,6 @@ from pydantic import BaseModel
 from typing import Optional, List
 from capy_teacher.database import get_db, init_db
 from capy_teacher.crud import DatasetManager
-from worker.export_dataset import export_dataset
 from capy_teacher.text_pipeline import teacher_preprocess
 from capy_teacher.models import VALID_LABELS, TrainingExample
 import os
@@ -247,6 +246,8 @@ def export_dataset_endpoint(
 ):
     """Export dataset using canonical shared preprocessing (skew-free)."""
     try:
+        # Optional dependency: in production deploy we may exclude worker/.
+        from worker.export_dataset import export_dataset
         result = export_dataset(db, output_path=output_path, fmt=fmt, only_active=True)
         return {
             "message": "Export successful",
@@ -254,6 +255,11 @@ def export_dataset_endpoint(
             "total": result["total"],
             "label_counts": result["label_counts"]
         }
+    except ModuleNotFoundError:
+        raise HTTPException(
+            status_code=501,
+            detail="Export feature is not included in this deployment (worker module missing).",
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

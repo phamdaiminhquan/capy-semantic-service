@@ -17,11 +17,13 @@ dataset/*.csv
 
 # Large/local-only folders
 .venv
-artifacts
+# Ignore all artifacts except the inference ONNX bundle
+artifacts/*
+!artifacts/onnx/
+!artifacts/onnx/**
 .cache
 **/.cache
 **/__pycache__
-**/*.onnx
 **/*.pt
 **/*.bin
 **/*.safetensors
@@ -30,4 +32,5 @@ artifacts
 postgres_data
 hf_cache
 cache
+
 

@@ -5,3 +5,9 @@ sqlalchemy
 psycopg2-binary
 python-dotenv
 pyvi
+numpy
+onnxruntime
+# Tokenizer runtime (no torch). Needed to load PhobERT tokenizer files.
+transformers
+sentencepiece
+
