@@ -56,8 +56,22 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
+      - name: Validate SSH secrets
+        shell: bash
+        env:
+          HOST: ${{ secrets.HOST }}
+          USERNAME: ${{ secrets.USERNAME }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+        run: |
+          for v in HOST USERNAME SSH_KEY; do
+            if [ -z "${!v}" ]; then
+              echo "Missing required secret: ${v}"
+              exit 1
+            fi
+          done
+
       - name: Deploy to VPS via SSH
-        uses: appleboy/ssh-action@master
+        uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}

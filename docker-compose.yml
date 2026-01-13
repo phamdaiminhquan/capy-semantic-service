@@ -1,0 +1,53 @@
+services:
+  postgres:
+    image: postgres:15
+    profiles: ["local-deps", "teacher", "prodlike"]
+    environment:
+      POSTGRES_USER: capy
+      POSTGRES_PASSWORD: capy
+      POSTGRES_DB: capy_teacher
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    profiles: ["local-deps", "teacher", "prodlike"]
+    ports:
+      - "6379:6379"
+
+  teacher-api:
+    profiles: ["teacher"]
+    build:
+      context: .
+      dockerfile: Dockerfile.teacher-api
+    environment:
+      DATABASE_URL: postgresql://capy:capy@postgres:5432/capy_teacher
+      REQUIRE_MODEL: "0"
+      MODEL_DIR: /app/artifacts/onnx
+    volumes:
+      - ./:/app
+    command: python -m uvicorn api:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+      - redis
+
+  inference-api:
+    profiles: ["prodlike"]
+    build:
+      context: .
+      dockerfile: Dockerfile.deploy
+    environment:
+      DATABASE_URL: postgresql://capy:capy@postgres:5432/capy_teacher
+      REQUIRE_MODEL: "1"
+      MODEL_DIR: artifacts/onnx
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_data:

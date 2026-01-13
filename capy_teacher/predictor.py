@@ -119,7 +119,7 @@ def get_text_classifier() -> TextClassifier:
     if _classifier is not None:
         return _classifier
 
-    model_dir = os.getenv("MODEL_DIR", DEFAULT_MODEL_DIR)
+    model_dir = os.getenv(DEFAULT_MODEL_DIR)
     # `.env` is primarily for docker-compose, so MODEL_DIR may be `/app/...`.
     # When running on the host OS, rewrite it to this repo folder.
     if not os.path.exists("/.dockerenv"):

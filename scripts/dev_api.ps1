@@ -3,7 +3,11 @@ param(
   [switch]$NoDeps,
   [switch]$SkipInstall,
   [string]$PyVersion = "",
-  [switch]$RecreateVenv
+  [switch]$RecreateVenv,
+  [switch]$ProdLike,
+  [string]$DbUrl = "",
+  [switch]$AllowRemoteDb,
+  [string]$RequirementsFile = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -12,6 +16,38 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $repoRoot
 
 Write-Host "== Capy Teacher API (dev) ==" -ForegroundColor Cyan
+
+if (-not $RequirementsFile) {
+  # Match VPS deploy image (Dockerfile.deploy) by default.
+  $RequirementsFile = "requirements-api.txt"
+}
+
+if ($ProdLike) {
+  Write-Host "Running in ProdLike mode (no auto-reload, api deps only)." -ForegroundColor Cyan
+}
+
+if ($DbUrl) {
+  $env:DATABASE_URL = $DbUrl
+}
+
+# Guardrail: avoid accidentally using a production DATABASE_URL from .env when running locally.
+if (-not $AllowRemoteDb) {
+  $repoEnvPath = Join-Path $repoRoot ".env"
+  $hasDbOverride = -not [string]::IsNullOrWhiteSpace($env:DATABASE_URL)
+  if (-not $hasDbOverride -and (Test-Path $repoEnvPath)) {
+    $dbLine = (Select-String -Path $repoEnvPath -Pattern '^\s*DATABASE_URL\s*=\s*' -ErrorAction SilentlyContinue | Select-Object -First 1)
+    if ($dbLine) {
+      $dbValue = ($dbLine.Line -replace '^\s*DATABASE_URL\s*=\s*', '').Trim().Trim('"').Trim("'")
+      if ($dbValue -and ($dbValue -notmatch '@(localhost|127\.0\.0\.1|postgres)[:/]' )) {
+        Write-Host "Refusing to run: .env contains a non-local DATABASE_URL." -ForegroundColor Red
+        Write-Host "Set a local DB first, e.g.:" -ForegroundColor Yellow
+        Write-Host "  `$env:DATABASE_URL=\"postgresql://capy:capy@localhost:5432/capy_teacher\"" -ForegroundColor Yellow
+        Write-Host "Or pass -DbUrl <url> or -AllowRemoteDb if you really intend to use remote DB." -ForegroundColor Yellow
+        exit 2
+      }
+    }
+  }
+}
 
 if (-not $NoDeps) {
   Write-Host "Starting local dependencies (postgres/redis) via docker compose..." -ForegroundColor Cyan
@@ -59,9 +95,9 @@ Write-Host "Python in venv:" -ForegroundColor Cyan
 & $py -c "import sys; print(sys.executable); print(sys.version)" | Out-Host
 
 if (-not $SkipInstall) {
-  Write-Host "Installing Python deps (requirements.txt)..." -ForegroundColor Cyan
+  Write-Host "Installing Python deps ($RequirementsFile)..." -ForegroundColor Cyan
   & $py -m pip install -U pip | Out-Host
-  & $py -m pip install -r requirements.txt | Out-Host
+  & $py -m pip install -r $RequirementsFile | Out-Host
 }
 
 Write-Host "PyVi check:" -ForegroundColor Cyan
@@ -78,4 +114,8 @@ Write-Host "Starting FastAPI with auto-reload on http://localhost:$Port ..." -Fo
 Write-Host "Swagger UI: http://localhost:$Port/docs" -ForegroundColor Green
 
 # api.py defines `app`
-& $py -m uvicorn api:app --reload --host 0.0.0.0 --port $Port
+if ($ProdLike) {
+  & $py -m uvicorn api:app --host 0.0.0.0 --port $Port
+} else {
+  & $py -m uvicorn api:app --reload --host 0.0.0.0 --port $Port
+}
